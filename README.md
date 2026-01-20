@@ -15,3 +15,6 @@ et ouvrez :
 ```
 http://localhost:8080/
 ```
+## Test serveur
+
+Un serveur a été setup sur : **34.76.75.125:25565** en Premium Only (pour tester en condition réelle)
