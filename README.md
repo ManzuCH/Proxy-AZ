@@ -7,3 +7,8 @@ Ubuntu 25.10 (je crois flm de vérifier) :
 
 Tape 2 pour rentrer le Token (voir token.md) et marquer y pour pouvoir parser les packets
 
+## Sur le AZ
+
+connecter vous à localhost:25565 ou juste localhost
+et ouvrez : 
+http://localhost:8080/
