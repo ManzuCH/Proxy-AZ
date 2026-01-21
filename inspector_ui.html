@@ -152,6 +152,9 @@
             <button onclick="toggleCheat('smart_mode')" id="btn-smart_mode"
                 style="background:#444; padding: 5px 10px; border:none; color:white; cursor:pointer;">Smart:
                 OFF</button>
+            <button onclick="toggleCheat('jump_reset')" id="btn-jump_reset"
+                style="background:#444; padding: 5px 10px; border:none; color:white; cursor:pointer;">Jump Reset:
+                OFF</button>
 
             <div style="display: flex; flex-direction: column; gap: 2px;">
                 <div style="display: flex; align-items: center; gap: 5px;">
@@ -334,6 +337,7 @@
                 updateToggle('fake_lag', status.fake_lag);
                 updateToggle('anti_kb', status.anti_kb);
                 updateToggle('smart_mode', status.smart_mode);
+                updateToggle('jump_reset', status.jump_reset);
 
                 // Update sliders if not active
                 updateSliderIfIdle('kb_h', status.kb_h);

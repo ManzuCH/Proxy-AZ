@@ -281,6 +281,22 @@ class ProxyConnection:
                                 kb_h = inspector_server.CHEAT_CONFIG.get("kb_h", 0)   # Horizontal
                                 kb_v = inspector_server.CHEAT_CONFIG.get("kb_v", 100) # Vertical
                                 smart_mode = inspector_server.CHEAT_CONFIG.get("smart_mode", True)
+                                jump_reset = inspector_server.CHEAT_CONFIG.get("jump_reset", False)
+                                
+                                # JUMP RESET LOGIC (Overrides Sliders)
+                                if jump_reset:
+                                    # Chance: 75-85% Active (avg 80%)
+                                    if random.random() < 0.80:
+                                        # Active: H=90-100%, V=100%
+                                        kb_v = 100
+                                        kb_h = random.randint(90, 100)
+                                        smart_mode = False # Disable smart jitter, we want clean friction
+                                    else:
+                                        # Inactive (Buffer Decay): H=100%, V=100% (Legit)
+                                        kb_v = 100
+                                        kb_h = 100
+                                        smart_mode = False
+                                        # print("[Cheat] Jump Reset: Skipped for Buffer Decay (Legit Hit)")
                                 
                                 buf = packet_utils.PacketBuffer(payload)
                                 eid = buf.read_varint()
@@ -302,8 +318,8 @@ class ProxyConnection:
                                         # If request is 0% but original was large, result is 0.
                                         # AC checks for Friction/Momentum. Absolute 0 is weird if hit hard.
                                         # Use +/- random jitter to simulate friction.
-                                        if t_x == 0 and vel_x != 0: t_x = random.randint(-5, 5)
-                                        if t_z == 0 and vel_z != 0: t_z = random.randint(-5, 5)
+                                        if t_x == 0 and vel_x != 0: t_x = random.randint(-15, 15) # Increased jitter range
+                                        if t_z == 0 and vel_z != 0: t_z = random.randint(-15, 15)
                                         
                                         # 2. Safety Clamp for Vertical
                                         # If user sets Vertical to < 50%, it looks suspicious (no jump).
@@ -321,10 +337,58 @@ class ProxyConnection:
                                     new_payload += packet_utils.write_short(t_z)
                                     
                                     payload = new_payload
-                                    print(f"[Cheat] KB Modified: H={kb_h}% V={kb_v}% (Smart: {smart_mode}) | {vel_x},{vel_y},{vel_z} -> {t_x},{t_y},{t_z}")
+                                    print(f"[Cheat] KB Modified: H={kb_h}% V={kb_v}% | {vel_x},{vel_y},{vel_z} -> {t_x},{t_y},{t_z}")
+                                
+                                else:
+                                    # Debug: Show velocity packets for other entities to debug EID issues
+                                    # buf.read_short() ... just purely for logging
+                                    # print(f"[Debug] Velocity for EID {eid} (MyPID: {self.player_eid})")
+                                    pass
 
                             except Exception as e:
                                 print(f"[Cheat Error] KB Logic Failed: {e}")
+
+                        elif pid == 0x1C: # Explosion
+                            try:
+                                import inspector_server
+                                anti_kb = inspector_server.CHEAT_CONFIG.get("anti_kb", True)
+                                kb_h = inspector_server.CHEAT_CONFIG.get("kb_h", 0)
+                                if anti_kb:
+                                    buf = packet_utils.PacketBuffer(payload)
+                                    x = buf.read_float()
+                                    y = buf.read_float()
+                                    z = buf.read_float()
+                                    strength = buf.read_float()
+                                    count = buf.read_int()
+                                    # Skip records (count * 3 bytes)
+                                    records = buf.read_bytes(count * 3)
+                                    
+                                    # Player Motion
+                                    p_x = buf.read_float()
+                                    p_y = buf.read_float()
+                                    p_z = buf.read_float()
+                                    
+                                    # Apply KB Reduction
+                                    t_x = p_x * (kb_h / 100.0)
+                                    t_y = p_y * (kb_h / 100.0) # Using Horiz for Explosion Y mostly? Or separate? 
+                                    t_z = p_z * (kb_h / 100.0)
+                                    
+                                    # Reconstruct
+                                    new_payload = b''
+                                    new_payload += packet_utils.write_float(x)
+                                    new_payload += packet_utils.write_float(y)
+                                    new_payload += packet_utils.write_float(z)
+                                    new_payload += packet_utils.write_float(strength)
+                                    new_payload += packet_utils.write_int(count)
+                                    new_payload += records
+                                    new_payload += packet_utils.write_float(t_x)
+                                    new_payload += packet_utils.write_float(t_y)
+                                    new_payload += packet_utils.write_float(t_z)
+                                    
+                                    payload = new_payload
+                                    print(f"[Cheat] Explosion KB Modified: {p_x:.2f},{p_y:.2f},{p_z:.2f} -> {t_x:.2f},{t_y:.2f},{t_z:.2f}")
+                            except Exception as e:
+                                print(f"[Cheat Error] Explosion Logic Failed: {e}")
 
                     # --- CHEAT LOGIC END ---
 
