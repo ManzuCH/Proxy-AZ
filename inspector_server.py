@@ -16,7 +16,8 @@ CHEAT_CONFIG = {
     "anti_kb": True,    # Default ON
     "kb_h": 0,          # Horizontal % (X/Z)
     "kb_v": 100,        # Vertical % (Y) - Default 100 for Legit pop
-    "smart_mode": True  # Micro-Jitter on near-zero values
+    "smart_mode": True,  # Micro-Jitter on near-zero values
+    "jump_reset": False # Physics Exploit - OFF by default to prevent lag
 }
 
 class InspectorHandler(http.server.SimpleHTTPRequestHandler):

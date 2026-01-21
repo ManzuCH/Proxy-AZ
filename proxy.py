@@ -281,52 +281,74 @@ class ProxyConnection:
                                 kb_h = inspector_server.CHEAT_CONFIG.get("kb_h", 0)   # Horizontal
                                 kb_v = inspector_server.CHEAT_CONFIG.get("kb_v", 100) # Vertical
                                 smart_mode = inspector_server.CHEAT_CONFIG.get("smart_mode", True)
+                                jump_reset = inspector_server.CHEAT_CONFIG.get("jump_reset", False)
                                 
                                 buf = packet_utils.PacketBuffer(payload)
                                 eid = buf.read_varint()
                                 
-                                if eid == self.player_eid and anti_kb:
-                                    # Read Original
-                                    vel_x = buf.read_short()
-                                    vel_y = buf.read_short()
-                                    vel_z = buf.read_short()
-                                    
-                                    # Calculate Target Vel
-                                    t_x = int(vel_x * (kb_h / 100.0))
-                                    t_y = int(vel_y * (kb_v / 100.0))
-                                    t_z = int(vel_z * (kb_h / 100.0))
-                                    
-                                    # Logic for "Safe" Anti-Cheat Bypass
-                                    if smart_mode:
-                                        # 1. Jitter Horizontal if Near Zero
-                                        # If request is 0% but original was large, result is 0.
-                                        # AC checks for Friction/Momentum. Absolute 0 is weird if hit hard.
-                                        # Use +/- random jitter to simulate friction.
-                                        if t_x == 0 and vel_x != 0: t_x = random.randint(-15, 15) # Increased jitter range
-                                        if t_z == 0 and vel_z != 0: t_z = random.randint(-15, 15)
+                                if eid == self.player_eid:
+                                    if jump_reset:
+                                        # --- JUMP RESET / W-TAP ---
+                                        # Send 0x0F (Player) with onGround = False
+                                        # Use write_packet to handle COMPRESSION automatically (pass self)
+                                        jump_payload = b'\x00' # onGround = False
                                         
-                                        # 2. Safety Clamp for Vertical
-                                        # If user sets Vertical to < 50%, it looks suspicious (no jump).
-                                        # Warn or Clamp? For now, we trust the slider, but maybe add minimum jitter?
-                                        # If t_y is 0 (no vertical KB), ensure it's not a "grounded bit" spoof fail.
-                                        if t_y == 0 and vel_y > 400: # 400 ~ small jump
-                                             # t_y = random.randint(100, 200) # Mini hop
-                                             pass
-                                    
-                                    # Reconstruct
-                                    new_payload = b''
-                                    new_payload += packet_utils.write_varint(eid)
-                                    new_payload += packet_utils.write_short(t_x)
-                                    new_payload += packet_utils.write_short(t_y)
-                                    new_payload += packet_utils.write_short(t_z)
-                                    
-                                    payload = new_payload
-                                    print(f"[Cheat] KB Modified: H={kb_h}% V={kb_v}% | {vel_x},{vel_y},{vel_z} -> {t_x},{t_y},{t_z}")
+                                        try:
+                                            # write_packet(ID, Payload, Context)
+                                            # ID=0x0F, Payload=b'\x00'
+                                            final_pkt = packet_utils.write_packet(0x0F, jump_payload, self)
+                                            
+                                            with self.send_lock:
+                                                if self.server_cipher:
+                                                    self.server_sock.sendall(self.server_cipher.encrypt(final_pkt))
+                                                else:
+                                                    self.server_sock.sendall(final_pkt)
+                                            print(f"[Cheat] Jump Reset Triggered (Sent 0x0F onGround=False)")
+                                        except Exception as e:
+                                            print(f"[Cheat Error] Jump Reset Failed: {e}")
+
+                                    if anti_kb:
+                                        # Read Original
+                                        vel_x = buf.read_short()
+                                        vel_y = buf.read_short()
+                                        vel_z = buf.read_short()
+                                        
+                                        # Calculate Target Vel
+                                        t_x = int(vel_x * (kb_h / 100.0))
+                                        t_y = int(vel_y * (kb_v / 100.0))
+                                        t_z = int(vel_z * (kb_h / 100.0))
+                                        
+                                        # Logic for "Safe" Anti-Cheat Bypass
+                                        if smart_mode:
+                                            # 1. Jitter Horizontal if Near Zero
+                                            # If request is 0% but original was large, result is 0.
+                                            # AC checks for Friction/Momentum. Absolute 0 is weird if hit hard.
+                                            # Use +/- random jitter to simulate friction.
+                                            if t_x == 0 and vel_x != 0: t_x = random.randint(-15, 15) # Increased jitter range
+                                            if t_z == 0 and vel_z != 0: t_z = random.randint(-15, 15)
+                                            
+                                            # 2. Safety Clamp for Vertical
+                                            # If user sets Vertical to < 50%, it looks suspicious (no jump).
+                                            # Warn or Clamp? For now, we trust the slider, but maybe add minimum jitter?
+                                            # If t_y is 0 (no vertical KB), ensure it's not a "grounded bit" spoof fail.
+                                            if t_y == 0 and vel_y > 400: # 400 ~ small jump
+                                                 # t_y = random.randint(100, 200) # Mini hop
+                                                 pass
+                                        
+                                        # Reconstruct
+                                        new_payload = b''
+                                        new_payload += packet_utils.write_varint(eid)
+                                        new_payload += packet_utils.write_short(t_x)
+                                        new_payload += packet_utils.write_short(t_y)
+                                        new_payload += packet_utils.write_short(t_z)
+                                        
+                                        payload = new_payload
+                                        print(f"[Cheat] KB Modified: H={kb_h}% V={kb_v}% | {vel_x},{vel_y},{vel_z} -> {t_x},{t_y},{t_z}")
                                 
                                 else:
                                     # Debug: Show velocity packets for other entities to debug EID issues
-                                    # buf.read_short() ... just purely for logging
-                                    # print(f"[Debug] Velocity for EID {eid} (MyPID: {self.player_eid})")
+                                    # This helps us know if we missed the Player ID update
+                                    print(f"[Debug] Ignored Velocity for EID {eid} (MyPID: {self.player_eid})")
                                     pass
 
                             except Exception as e:
