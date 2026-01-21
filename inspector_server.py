@@ -16,9 +16,7 @@ CHEAT_CONFIG = {
     "anti_kb": True,    # Default ON
     "kb_h": 0,          # Horizontal % (X/Z)
     "kb_v": 100,        # Vertical % (Y) - Default 100 for Legit pop
-    "smart_mode": True, # Micro-Jitter on near-zero values
-    "jump_reset": False, # Auto-Jump Mode (Vertical 100%, Horiz 90-100%, Chance 80%)
-    "active_combat": False # Only enabled when hitting/interacting with entities
+    "smart_mode": True  # Micro-Jitter on near-zero values
 }
 
 class InspectorHandler(http.server.SimpleHTTPRequestHandler):
@@ -33,18 +31,7 @@ class InspectorHandler(http.server.SimpleHTTPRequestHandler):
             with open("inspector_ui.html", "rb") as f:
                 self.wfile.write(f.read())
         
-        elif path == "/api/packets":
-            query = urllib.parse.parse_qs(parsed_path.query)
-            try:
-                since = int(query.get('since', [0])[0])
-            except: since = 0
-            
-            new_packets = PACKET_HISTORY[since:]
-            
-            self.send_response(200)
-            self.send_header('Content-type', 'application/json')
-            self.end_headers()
-            self.wfile.write(json.dumps(new_packets).encode('utf-8'))
+        # ... (packets) ...
 
         elif path == "/api/status":
             self.send_response(200)
