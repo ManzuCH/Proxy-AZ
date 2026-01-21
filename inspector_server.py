@@ -17,7 +17,8 @@ CHEAT_CONFIG = {
     "kb_h": 0,          # Horizontal % (X/Z)
     "kb_v": 100,        # Vertical % (Y) - Default 100 for Legit pop
     "smart_mode": True, # Micro-Jitter on near-zero values
-    "jump_reset": False # Auto-Jump Mode (Vertical 100%, Horiz 90-100%, Chance 80%)
+    "jump_reset": False, # Auto-Jump Mode (Vertical 100%, Horiz 90-100%, Chance 80%)
+    "active_combat": False # Only enabled when hitting/interacting with entities
 }
 
 class InspectorHandler(http.server.SimpleHTTPRequestHandler):

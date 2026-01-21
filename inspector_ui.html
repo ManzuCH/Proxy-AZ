@@ -3,211 +3,457 @@
 
 <head>
     <meta charset="UTF-8">
-    <title>Minecraft Packet Inspector</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>MC Cheat Proxy - Command Center</title>
     <style>
         :root {
-            --bg-color: #1e1e1e;
-            --text-color: #d4d4d4;
-            --panel-bg: #252526;
-            --border-color: #3e3e42;
-            --highlight: #007acc;
-            --accent: #4ec9b0;
+            --bg-color: #121212;
+            --panel-bg: #1e1e1e;
+            --text-main: #e0e0e0;
+            --text-dim: #a0a0a0;
+            --accent: #2da042;
+            --accent-hover: #3fb555;
+            --accent-danger: #d32f2f;
+            --border: #333;
         }
 
         body {
+            font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: var(--bg-color);
-            color: var(--text-color);
-            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            color: var(--text-main);
             margin: 0;
             display: flex;
-            flex-direction: column;
             height: 100vh;
-        }
-
-        header {
-            background-color: #333333;
-            padding: 10px 20px;
-            display: flex;
-            justify-content: space-between;
-            align-items: center;
-            border-bottom: 1px solid var(--border-color);
-        }
-
-        h1 {
-            margin: 0;
-            font-size: 1.2rem;
-            color: #fff;
-        }
-
-        .controls {
-            display: flex;
-            gap: 10px;
-        }
-
-        input[type="text"] {
-            background: #3c3c3c;
-            border: 1px solid var(--border-color);
-            color: white;
-            padding: 5px 10px;
-            border-radius: 4px;
-        }
-
-        button {
-            background-color: var(--highlight);
-            color: white;
-            border: none;
-            padding: 5px 15px;
-            cursor: pointer;
-            border-radius: 4px;
-        }
-
-        button:hover {
-            opacity: 0.9;
-        }
-
-        .main-container {
-            display: flex;
-            flex: 1;
             overflow: hidden;
         }
 
-        .packet-list {
-            flex: 2;
-            overflow-y: auto;
-            border-right: 1px solid var(--border-color);
+        /* Sidebar */
+        .sidebar {
+            width: 280px;
+            background-color: var(--panel-bg);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 20px;
+            box-shadow: 2px 0 10px rgba(0, 0, 0, 0.5);
+            z-index: 10;
+        }
+
+        .title {
+            font-size: 1.2rem;
+            font-weight: bold;
+            color: #fff;
+            margin-bottom: 20px;
+            text-transform: uppercase;
+            letter-spacing: 1px;
+            border-bottom: 2px solid var(--accent);
+            padding-bottom: 10px;
+        }
+
+        /* Controls */
+        .control-group {
+            margin-bottom: 25px;
+        }
+
+        .control-label {
+            font-size: 0.85rem;
+            color: var(--text-dim);
+            text-transform: uppercase;
+            margin-bottom: 10px;
+            display: block;
+            font-weight: 600;
+        }
+
+        .toggle-btn {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            background: #2c2c2c;
+            border: 1px solid var(--border);
+            color: var(--text-main);
+            padding: 10px 15px;
+            border-radius: 6px;
+            cursor: pointer;
+            width: 100%;
+            margin-bottom: 8px;
+            transition: all 0.2s;
+            font-size: 0.9rem;
+        }
+
+        .toggle-btn:hover {
+            background: #333;
+            border-color: #555;
+        }
+
+        .toggle-btn.active {
+            background: rgba(45, 160, 66, 0.15);
+            border-color: var(--accent);
+            color: var(--accent);
+        }
+
+        .toggle-btn .status {
+            font-weight: bold;
+            font-size: 0.8rem;
+        }
+
+        /* Sliders */
+        .slider-container {
+            margin-bottom: 15px;
+            background: #252525;
+            padding: 10px;
+            border-radius: 6px;
+            border: 1px solid #333;
+        }
+
+        .slider-header {
+            display: flex;
+            justify-content: space-between;
+            margin-bottom: 5px;
+            font-size: 0.85rem;
+        }
+
+        input[type=range] {
+            width: 100%;
+            cursor: pointer;
+        }
+
+        /* Main Content */
+        .main-content {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .toolbar {
+            height: 50px;
+            background: var(--panel-bg);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            padding: 0 20px;
+            gap: 15px;
+        }
+
+        input.search-box {
+            background: #121212;
+            border: 1px solid var(--border);
+            color: white;
+            padding: 6px 12px;
+            border-radius: 4px;
+            width: 300px;
+            font-size: 0.9rem;
+        }
+
+        .btn-action {
+            background: #333;
+            border: none;
+            color: white;
+            padding: 6px 15px;
+            border-radius: 4px;
+            cursor: pointer;
+            font-size: 0.85rem;
+            transition: background 0.2s;
+        }
+
+        .btn-action:hover {
+            background: #444;
+        }
+
+        .btn-clear {
+            background: #d32f2f;
+        }
+
+        .btn-clear:hover {
+            background: #b71c1c;
+        }
+
+        /* Table */
+        .table-wrapper {
+            flex: 1;
+            overflow: auto;
+            position: relative;
         }
 
         table {
             width: 100%;
             border-collapse: collapse;
-            font-size: 0.9rem;
+            font-size: 0.85rem;
+            table-layout: fixed;
         }
 
-        th,
-        td {
-            text-align: left;
-            padding: 6px 10px;
-            border-bottom: 1px solid #2d2d2d;
-            white-space: nowrap;
+        thead {
+            position: sticky;
+            top: 0;
+            background: var(--panel-bg);
+            z-index: 5;
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.3);
         }
 
         th {
-            background-color: #2d2d2d;
-            position: sticky;
-            top: 0;
-            color: #aaa;
+            text-align: left;
+            padding: 8px 12px;
+            color: var(--text-dim);
+            font-weight: 600;
+            border-bottom: 1px solid var(--border);
         }
 
-        tr:hover {
-            background-color: #2a2d2e;
+        td {
+            padding: 6px 12px;
+            border-bottom: 1px solid #222;
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            color: #ccc;
+        }
+
+        tr.packet-row:hover {
+            background-color: #2a2a2a;
             cursor: pointer;
         }
 
         tr.selected {
-            background-color: #094771 !important;
-            color: white;
+            background-color: rgba(45, 160, 66, 0.2) !important;
+            border-left: 3px solid var(--accent);
         }
 
-        /* Colors for directions */
-        .dir-cs {
-            color: #569cd6;
+        /* Direction Badges */
+        .badge {
+            padding: 2px 6px;
+            border-radius: 3px;
+            font-size: 0.75rem;
+            font-weight: bold;
         }
 
-        /* Blueish */
-        .dir-sc {
+        .badge-cs {
+            color: #4fc3f7;
+            background: rgba(79, 195, 247, 0.1);
+        }
+
+        /* Client to Server: Blue */
+        .badge-sc {
+            color: #ffb74d;
+            background: rgba(255, 183, 77, 0.1);
+        }
+
+        /* Server to Client: Orange */
+
+        /* Details Panel */
+        .details-panel {
+            height: 300px;
+            background: var(--panel-bg);
+            border-top: 1px solid var(--border);
+            padding: 20px;
+            overflow-y: auto;
+            font-family: 'Consolas', 'Monaco', monospace;
+        }
+
+        .details-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 20px;
+        }
+
+        h3 {
+            margin: 0 0 10px 0;
+            font-size: 1rem;
+            color: #fff;
+        }
+
+        .kv-table {
+            width: 100%;
+            font-size: 0.85rem;
+        }
+
+        .kv-table td {
+            border: none;
+            padding: 2px 0;
+        }
+
+        .kv-key {
+            color: #888;
+            width: 120px;
+        }
+
+        .kv-val {
             color: #ce9178;
         }
 
-        /* Orangeish */
-
-        .details-panel {
-            flex: 1;
-            background-color: var(--panel-bg);
-            padding: 20px;
-            overflow-y: auto;
-            font-family: 'Consolas', 'Courier New', monospace;
-        }
-
-        .hex-view {
+        .hex-dump {
+            background: #121212;
+            padding: 10px;
+            border-radius: 4px;
+            color: #bfa6a5;
+            font-size: 0.8rem;
             white-space: pre-wrap;
             word-break: break-all;
-            color: #bfa6a5;
+            border: 1px solid #333;
+            margin-top: 10px;
+        }
+
+        ::-webkit-scrollbar {
+            width: 8px;
+            height: 8px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: #121212;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: #333;
+            border-radius: 4px;
+        }
+
+        ::-webkit-scrollbar-thumb:hover {
+            background: #444;
         }
     </style>
 </head>
 
 <body>
 
-    <header>
-        <h1>MC Proxy Inspector</h1>
-        <div class="controls" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
-            <label style="color: #aaa; font-weight: bold;">Cheats:</label>
+    <!-- SIDEBAR -->
+    <div class="sidebar">
+        <div class="title">Proxy Control</div>
 
-            <button onclick="toggleCheat('fake_lag')" id="btn-fake_lag"
-                style="background:#444; padding: 5px 10px; border:none; color:white; cursor:pointer;">Fake Lag:
-                OFF</button>
-            <button onclick="toggleCheat('anti_kb')" id="btn-anti_kb"
-                style="background:#444; padding: 5px 10px; border:none; color:white; cursor:pointer;">Anti-KB:
-                OFF</button>
-            <button onclick="toggleCheat('smart_mode')" id="btn-smart_mode"
-                style="background:#444; padding: 5px 10px; border:none; color:white; cursor:pointer;">Smart:
-                OFF</button>
-            <button onclick="toggleCheat('jump_reset')" id="btn-jump_reset"
-                style="background:#444; padding: 5px 10px; border:none; color:white; cursor:pointer;">Jump Reset:
-                OFF</button>
+        <div class="control-group">
+            <label class="control-label">Cheat Modules</label>
 
-            <div style="display: flex; flex-direction: column; gap: 2px;">
-                <div style="display: flex; align-items: center; gap: 5px;">
-                    <label style="color: #ccc; font-size: 0.8em; width: 30px;">Horiz:</label>
-                    <input type="range" id="kb_h" min="0" max="100" value="0" style="width: 80px;"
-                        oninput="updateLabel('kb_h', this.value)" onchange="setVal('kb_h', this.value)">
-                    <span id="label_kb_h"
-                        style="color: #fff; width: 30px; text-align: right; font-size: 0.8em;">0%</span>
+            <button class="toggle-btn" id="btn-fake_lag" onclick="toggleCheat('fake_lag')">
+                <span>Fake Lag</span>
+                <span class="status">OFF</span>
+            </button>
+
+            <button class="toggle-btn" id="btn-anti_kb" onclick="toggleCheat('anti_kb')">
+                <span>Anti-KB</span>
+                <span class="status">OFF</span>
+            </button>
+
+            <button class="toggle-btn" id="btn-smart_mode" onclick="toggleCheat('smart_mode')">
+                <span>Smart Jitter</span>
+                <span class="status">OFF</span>
+            </button>
+
+            <button class="toggle-btn" id="btn-jump_reset" onclick="toggleCheat('jump_reset')">
+                <span>Jump Reset++</span>
+                <span class="status">OFF</span>
+            </button>
+
+            <button class="toggle-btn" id="btn-active_combat" onclick="toggleCheat('active_combat')">
+                <span>Combat Only</span>
+                <span class="status">OFF</span>
+            </button>
+        </div>
+
+        <div class="control-group">
+            <label class="control-label">Settings</label>
+
+            <div class="slider-container">
+                <div class="slider-header">
+                    <span>H-Velocity</span>
+                    <span id="label_kb_h" style="color:var(--accent);">0%</span>
                 </div>
-                <div style="display: flex; align-items: center; gap: 5px;">
-                    <label style="color: #ccc; font-size: 0.8em; width: 30px;">Vert:</label>
-                    <input type="range" id="kb_v" min="0" max="100" value="100" style="width: 80px;"
-                        oninput="updateLabel('kb_v', this.value)" onchange="setVal('kb_v', this.value)">
-                    <span id="label_kb_v"
-                        style="color: #fff; width: 30px; text-align: right; font-size: 0.8em;">100%</span>
-                </div>
+                <input type="range" id="kb_h" min="0" max="100" value="0" oninput="updateLabel('kb_h', this.value)"
+                    onchange="setVal('kb_h', this.value)">
             </div>
 
-            <span style="border-left: 1px solid #555; height: 30px; margin: 0 5px;"></span>
-            <input type="text" id="filterInput" placeholder="Filter (e.g. Chat, 0x23)..." style="padding: 5px;">
-            <button onclick="togglePause()" id="pauseBtn" style="padding: 5px;">Pause</button>
-            <button onclick="clearPackets()" style="padding: 5px;">Clear</button>
+            <div class="slider-container">
+                <div class="slider-header">
+                    <span>V-Velocity</span>
+                    <span id="label_kb_v" style="color:var(--accent);">100%</span>
+                </div>
+                <input type="range" id="kb_v" min="0" max="100" value="100" oninput="updateLabel('kb_v', this.value)"
+                    onchange="setVal('kb_v', this.value)">
+            </div>
         </div>
-    </header>
 
-    <div class="main-container">
-        <div class="packet-list">
-            <table id="packetTable">
-                <thead>
-                    <tr>
-                        <th width="80">Time</th>
-                        <th width="50">Dir</th>
-                        <th width="80">State</th>
-                        <th width="50">ID</th>
-                        <th>Name</th>
-                        <th width="60">Len</th>
-                    </tr>
-                </thead>
-                <tbody>
-                    <!-- Rows injected here -->
-                </tbody>
-            </table>
+        <div class="control-group" style="margin-top: auto;">
+            <div style="font-size: 0.75rem; color: #555; text-align: center;">
+                v2.1.0-bypass
+            </div>
         </div>
+    </div>
+
+    <!-- MAIN CONTENT -->
+    <div class="main-content">
+        <!-- Toolbar -->
+        <div class="toolbar">
+            <input type="text" id="filterInput" class="search-box" placeholder="Filter packets (ID, Name, Payload)...">
+            <div style="flex:1;"></div>
+            <button class="btn-action" id="pauseBtn" onclick="togglePause()">Pause Stream</button>
+            <button class="btn-action btn-clear" onclick="clearPackets()">Clear Logs</button>
+        </div>
+
+        <!-- Packet Table -->
+        <div class="table-wrapper">
+            <div class="packet-list">
+                <table id="packetTable">
+                    <thead>
+                        <tr>
+                            <th style="width: 80px;">Time</th>
+                            <th style="width: 60px;">Dir</th>
+                            <th style="width: 80px;">State</th>
+                            <th style="width: 60px;">ID</th>
+                            <th>Name / Description</th>
+                            <th style="width: 60px;">Size</th>
+                        </tr>
+                    </thead>
+                    <tbody>
+                        <!-- Rows injected via JS -->
+                    </tbody>
+                </table>
+            </div>
+        </div>
+
+        <!-- Details Panel -->
         <div class="details-panel" id="detailsPanel">
-            <h3>Select a packet to view details</h3>
+            <div style="color: #666; text-align: center; margin-top: 100px;">
+                Select a packet to inspect payload
+            </div>
         </div>
     </div>
 
     <script>
+        // --- Logic ---
         let packets = [];
         let isPaused = false;
         let lastIndex = 0;
         let selectedPacket = null;
+
+        // --- Init ---
+        setInterval(fetchPackets, 500); // Faster polling
+        setInterval(fetchStatus, 2000);
+        fetchStatus();
+
+        // --- API ---
+
+        async function fetchStatus() {
+            try {
+                const resp = await fetch('/api/status');
+                const status = await resp.json();
+
+                updateToggleUI('fake_lag', status.fake_lag);
+                updateToggleUI('anti_kb', status.anti_kb);
+                updateToggleUI('smart_mode', status.smart_mode);
+                updateToggleUI('jump_reset', status.jump_reset);
+                updateToggleUI('active_combat', status.active_combat);
+
+                updateSliderUI('kb_h', status.kb_h);
+                updateSliderUI('kb_v', status.kb_v);
+            } catch (e) { console.error("Status fetch fail", e); }
+        }
+
+        async function toggleCheat(cheat) {
+            const btn = document.getElementById('btn-' + cheat);
+            const isActive = btn.classList.contains('active');
+            await fetch(`/api/toggle?cheat=${cheat}&state=${!isActive}`);
+            fetchStatus(); // Force refresh
+        }
+
+        async function setVal(key, val) {
+            await fetch(`/api/toggle?cheat=${key}&value=${val}`);
+        }
 
         async function fetchPackets() {
             if (isPaused) return;
@@ -222,15 +468,56 @@
                     });
                     lastIndex += newPackets.length;
 
-                    // Auto scroll if not selecting something?
+                    // Auto scroll
                     if (!selectedPacket) {
-                        const list = document.querySelector('.packet-list');
-                        list.scrollTop = list.scrollHeight;
+                        const wrapper = document.querySelector('.table-wrapper');
+                        wrapper.scrollTop = wrapper.scrollHeight;
                     }
                 }
-            } catch (e) {
-                console.error("Fetch error", e);
+            } catch (e) { }
+        }
+
+        function clearPackets() {
+            packets = [];
+            document.querySelector('#packetTable tbody').innerHTML = "";
+            document.getElementById('detailsPanel').innerHTML = "<div style='color:#666;text-align:center;margin-top:100px;'>Select a packet</div>";
+            selectedPacket = null;
+            // Note: Backend history isn't actually cleared in this simple version, 
+            // but we reset logical view. Ideally verify backend implements global clear.
+            location.reload(); // Simplest way to resync with server buffer
+        }
+
+        function togglePause() {
+            isPaused = !isPaused;
+            const btn = document.getElementById('pauseBtn');
+            btn.innerText = isPaused ? "Resume Stream" : "Pause Stream";
+            btn.style.background = isPaused ? "#f57c00" : "#333";
+        }
+
+        // --- UI Helpers ---
+
+        function updateToggleUI(id, state) {
+            const btn = document.getElementById('btn-' + id);
+            const statusSpan = btn.querySelector('.status');
+            if (state) {
+                btn.classList.add('active');
+                statusSpan.innerText = "ON";
+            } else {
+                btn.classList.remove('active');
+                statusSpan.innerText = "OFF";
             }
+        }
+
+        function updateSliderUI(id, val) {
+            const slider = document.getElementById(id);
+            if (document.activeElement !== slider) {
+                slider.value = val;
+                document.getElementById('label_' + id).innerText = val + "%";
+            }
+        }
+
+        function updateLabel(id, val) {
+            document.getElementById('label_' + id).innerText = val + "%";
         }
 
         function addPacketRow(pkt) {
@@ -242,154 +529,94 @@
             tr.className = `packet-row`;
             tr.onclick = () => selectPacket(pkt, tr);
 
-            const dirClass = pkt.direction === "C->S" ? "dir-cs" : "dir-sc";
+            // Direction Logic
+            let dirBadge = "";
+            if (pkt.direction === "C->S") dirBadge = "<span class='badge badge-cs'>C → S</span>";
+            else dirBadge = "<span class='badge badge-sc'>S → C</span>";
 
-            // Show Name + Description if available
-            let nameCol = pkt.name;
-            if (pkt.description) {
-                nameCol += ` <span style='color: #888; font-size: 0.85em;'>(${pkt.description})</span>`;
-            }
+            // Name Logic
+            let nameCol = `<span style="color:#fff;">${pkt.name}</span>`;
+            if (pkt.description) nameCol += ` <span style='color: #777;'>${pkt.description}</span>`;
 
             tr.innerHTML = `
-            <td>${pkt.time}</td>
-            <td class="${dirClass}"><strong>${pkt.direction}</strong></td>
-            <td>${pkt.state}</td>
-            <td>0x${pkt.id.toString(16).padStart(2, '0').toUpperCase()}</td>
-            <td>${nameCol}</td>
-            <td>${pkt.length}</td>
-        `;
+                <td style="color:#555;">${pkt.time}</td>
+                <td>${dirBadge}</td>
+                <td style="color:#888;">${pkt.state}</td>
+                <td style="font-family:monospace; color:#aaa;">0x${pkt.id.toString(16).toUpperCase().padStart(2, '0')}</td>
+                <td>${nameCol}</td>
+                <td style="color:#555;">${pkt.length}</td>
+            `;
             tbody.appendChild(tr);
         }
 
         function matchesFilter(pkt, filter) {
             if (pkt.name.toLowerCase().includes(filter)) return true;
             if (pkt.id.toString(16).includes(filter)) return true;
-            if (pkt.state.toLowerCase().includes(filter)) return true;
             if (pkt.description && pkt.description.toLowerCase().includes(filter)) return true;
+            if (pkt.parsed) {
+                // simple search in parsed json string
+                if (JSON.stringify(pkt.parsed).toLowerCase().includes(filter)) return true;
+            }
             return false;
         }
 
         function selectPacket(pkt, tr) {
-            // Highlight row
             document.querySelectorAll('tr.selected').forEach(r => r.classList.remove('selected'));
             tr.classList.add('selected');
             selectedPacket = pkt;
 
-            // Show details
             const panel = document.getElementById('detailsPanel');
 
+            // Build Parsed HTML
             let parsedHtml = "";
             if (pkt.parsed) {
-                parsedHtml += "<h4>Parsed Fields</h4><table style='width:auto;'>";
+                parsedHtml += "<div style='margin-bottom:15px;'>";
                 for (const [key, value] of Object.entries(pkt.parsed)) {
-                    parsedHtml += `<tr><td style='color:#9cdcfe;'>${key}</td><td style='color:#ce9178;'>${value}</td></tr>`;
+                    parsedHtml += `<div><span class='kv-key'>${key}:</span> <span class='kv-val'>${value}</span></div>`;
                 }
-                parsedHtml += "</table><hr/>";
+                parsedHtml += "</div>";
             }
 
             panel.innerHTML = `
-            <h3>Packet Details</h3>
-            <p><strong>Name:</strong> ${pkt.name}</p>
-            <p><strong>ID:</strong> 0x${pkt.id.toString(16).toUpperCase()}</p>
-            <p><strong>Size:</strong> ${pkt.length} bytes</p>
-            <p><strong>Description:</strong> ${pkt.description || "-"}</p>
-            <hr/>
-            ${parsedHtml}
-            <h4>Hex Dump</h4>
-            <div class="hex-view">${formatHex(pkt.payload)}</div>
-        `;
+                <div class="details-grid">
+                    <div>
+                        <h3>Packet Info</h3>
+                        <table class="kv-table">
+                            <tr><td class="kv-key">Name</td><td>${pkt.name}</td></tr>
+                            <tr><td class="kv-key">ID</td><td>0x${pkt.id.toString(16).toUpperCase()}</td></tr>
+                            <tr><td class="kv-key">Size</td><td>${pkt.length} bytes</td></tr>
+                            <tr><td class="kv-key">Time</td><td>${pkt.time}</td></tr>
+                        </table>
+                    </div>
+                    <div>
+                        <h3>Parsed Data</h3>
+                        ${parsedHtml || "<span style='color:#555;'>No detailed parsing available</span>"}
+                    </div>
+                </div>
+                <h3>Hex Dump</h3>
+                <div class="hex-dump">${formatHex(pkt.payload)}</div>
+            `;
         }
 
-        function formatHex(hexStr) {
-            // Format nicely
-            let output = "";
-            for (let i = 0; i < hexStr.length; i += 32) { // 16 bytes = 32 hex chars
-                const chunk = hexStr.substr(i, 32);
-                output += chunk.match(/.{1,2}/g).join(" ") + "\n";
+        function formatHex(hex) {
+            // Format nice hex dump with spacing
+            let out = "";
+            for (let i = 0; i < hex.length; i += 2) {
+                out += hex.substr(i, 2) + " ";
+                if ((i + 2) % 16 === 0) out += "\n";
             }
-            return output;
+            return out;
         }
 
-        function togglePause() {
-            isPaused = !isPaused;
-            document.getElementById('pauseBtn').innerText = isPaused ? "Resume" : "Pause";
-            document.getElementById('pauseBtn').style.backgroundColor = isPaused ? "#e0902d" : "#007acc";
-        }
+        // Live Filter
+        document.getElementById('filterInput').addEventListener('input', () => {
+            // Clear and redraw
+            const tbody = document.querySelector('#packetTable tbody');
+            tbody.innerHTML = "";
+            packets.forEach(addPacketRow);
+        });
 
-        function clearPackets() {
-            packets = []; // Keep in memory? Or clear backend?
-            // Ideally backend is cleared too, but for now just UI
-            document.querySelector('#packetTable tbody').innerHTML = "";
-            lastIndex = 0; // Reset index? Wait, if backend isn't cleared, we fetch duplicated.
-            // Simple hack: We reload the page to restart session or implement clear endpoint.
-            // Let's just clear UI.
-        }
-
-        // Filter Logic
-        setInterval(fetchPackets, 1000);
-        setInterval(fetchStatus, 2000);
-
-        async function fetchStatus() {
-            try {
-                const resp = await fetch('/api/status');
-                const status = await resp.json();
-
-                updateToggle('fake_lag', status.fake_lag);
-                updateToggle('anti_kb', status.anti_kb);
-                updateToggle('smart_mode', status.smart_mode);
-                updateToggle('jump_reset', status.jump_reset);
-
-                // Update sliders if not active
-                updateSliderIfIdle('kb_h', status.kb_h);
-                updateSliderIfIdle('kb_v', status.kb_v);
-
-            } catch (e) { }
-        }
-
-        function updateToggle(id, state) {
-            const btn = document.getElementById('btn-' + id);
-            if (!btn) return;
-
-            let label = id.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
-            if (id === 'anti_kb') label = "Anti-KB";
-            if (id === 'smart_mode') label = "Smart";
-
-            if (state) {
-                btn.style.backgroundColor = "#2da042";
-                btn.innerText = label + ": ON";
-            } else {
-                btn.style.backgroundColor = "#444";
-                btn.innerText = label + ": OFF";
-            }
-        }
-
-        function updateSliderIfIdle(key, val) {
-            const slider = document.getElementById(key);
-            if (!slider) return;
-
-            // Only update if user is NOT currently dragging it
-            if (document.activeElement !== slider) {
-                slider.value = val;
-                updateLabel(key, val);
-            }
-        }
-
-        async function toggleCheat(cheat) {
-            const btn = document.getElementById('btn-' + cheat);
-            const isMsgOn = btn.innerText.includes("ON");
-            await fetch(`/api/toggle?cheat=${cheat}&state=${!isMsgOn}`);
-            fetchStatus();
-        }
-
-        function updateLabel(key, val) {
-            document.getElementById('label_' + key).innerText = val + "%";
-        }
-
-        async function setVal(key, val) {
-            await fetch(`/api/toggle?cheat=${key}&value=${val}`);
-        }
     </script>
-
 </body>
 
 </html>

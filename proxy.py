@@ -45,6 +45,7 @@ class ProxyConnection:
         self.player_eid = None
         self.delayed_packets = [] # List of (send_time, packet_data)
         self.last_packet_time = 0 
+        self.last_attack_time = 0 # For "Combat Only" mode 
         
         self.send_lock = threading.Lock() # Protects server_sock writes
 
@@ -125,6 +126,19 @@ class ProxyConnection:
                             print(f"[Proxy] Overriding Username with Authenticated: {MC_PROFILE_NAME}")
                             data = packet_utils.write_string(MC_PROFILE_NAME)
 
+                elif self.client_state == 3:
+                     # Track Combat (0x0A Use Entity)
+                     if pid == 0x0A:
+                         try:
+                             buf = packet_utils.PacketBuffer(data)
+                             target_eid = buf.read_varint()
+                             action_type = buf.read_varint()
+                             # Type 1 = Attack
+                             if action_type == 1:
+                                 self.last_attack_time = time.time()
+                                 # print(f"[Combat] Attack Detected on EID {target_eid}. Active Mode Refreshed.")
+                         except: pass
+
                 # --- CHEAT: DELAY TRANSACTIONS (e.g. 0x0F) ---
                 # Check Cheat Config
                 try:
@@ -132,21 +146,23 @@ class ProxyConnection:
                     fake_lag = inspector_server.CHEAT_CONFIG.get("fake_lag", False)
                 except: fake_lag = False
 
-                if self.client_state == 3 and pid == 0x0F and fake_lag:
-                    # Delay logic...
-                    delay = random.uniform(0.2, 0.4) 
-                    send_time = time.time() + delay
-                    
-                    full_packet = packet_utils.write_packet(pid, data, self)
-                    
-                    # Ensure monotonic time
-                    if send_time < self.last_packet_time:
-                        send_time = self.last_packet_time + 0.05
-                    self.last_packet_time = send_time
-                    
-                    self.delayed_packets.append((send_time, full_packet))
-                    print(f"[Cheat] Delayed Transaction 0x0F by {delay:.2f}s")
-                    continue # Skip immediate send
+                if self.client_state == 3 and fake_lag:
+                    # Target CPacketPlayer and variants (0x0C - 0x0F)
+                    if pid in [0x0C, 0x0D, 0x0E, 0x0F]:
+                        # Latence Synthétique: 50ms - 100ms
+                        delay = random.uniform(0.05, 0.10) 
+                        send_time = time.time() + delay
+                        
+                        full_packet = packet_utils.write_packet(pid, data, self)
+                        
+                        # Ensure monotonic time
+                        if send_time < self.last_packet_time:
+                            send_time = self.last_packet_time + 0.005 # Small increment
+                        self.last_packet_time = send_time
+                        
+                        self.delayed_packets.append((send_time, full_packet))
+                        # print(f"[Cheat] Backtrack: Delayed {delay*1000:.1f}ms")
+                        continue # Skip immediate send
 
                 # Forward immediately
                 try:
@@ -282,6 +298,17 @@ class ProxyConnection:
                                 kb_v = inspector_server.CHEAT_CONFIG.get("kb_v", 100) # Vertical
                                 smart_mode = inspector_server.CHEAT_CONFIG.get("smart_mode", True)
                                 jump_reset = inspector_server.CHEAT_CONFIG.get("jump_reset", False)
+                                active_combat = inspector_server.CHEAT_CONFIG.get("active_combat", False)
+
+                                # COMBAT CHECK (Overrides everything)
+                                if active_combat:
+                                    # If not attacked in last 3 seconds -> Legit Mode
+                                    if time.time() - self.last_attack_time > 3.0:
+                                        kb_h = 100
+                                        kb_v = 100
+                                        smart_mode = False
+                                        jump_reset = False
+                                        # print("[Cheat] Combat Mode: Inactive (Legit)")
                                 
                                 # JUMP RESET LOGIC (Overrides Sliders)
                                 if jump_reset:
