@@ -48,19 +48,26 @@ class PacketInspector:
                         pkt_name = mapping[packet_id]
         except:
             pass
-            
-        # 4. Format Output
+
+        # 4. Parse fields (Deep Inspection)
+        parsed_data = None
+        parsed_desc = ""
+        try:
+            import packet_parser
+            parsed_data = packet_parser.parse_packet(direction, state, packet_id, payload)
+            if parsed_data and 'description' in parsed_data:
+                parsed_desc = parsed_data['description']
+        except Exception as e:
+            # print(f"Parser error: {e}")
+            pass
+
+        # 5. Format Output & Push
         # [Time] [Dir] [State] PacketName | Len=... | Preview=...
         timestamp = datetime.datetime.now().strftime("%H:%M:%S.%f")[:-3]
-        preview = payload.hex()[:30] # First 15 bytes
-        if len(payload) > 15: preview += "..."
         
-        # Console Log
-        # print(f"[{timestamp}] [{direction}] [{state_str}] {pkt_name} (0x{packet_id:02x}) | Len={len(payload)} | {preview}")
-        
-        # Push to Web Server History
+        # Helper to push to Web Server
         try:
              import inspector_server
-             inspector_server.add_packet(time.time(), direction, state_str, packet_id, pkt_name, len(payload), payload)
+             inspector_server.add_packet(time.time(), direction, state_str, packet_id, pkt_name, len(payload), payload, parsed_desc, parsed_data)
         except:
              pass

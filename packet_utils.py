@@ -40,6 +40,31 @@ class PacketBuffer:
     def read_packet_id(self):
         return self.read_varint()
 
+    # --- Primitives ---
+    def read_short(self):
+        return struct.unpack('>h', self.io.read(2))[0]
+
+    def read_unsigned_short(self):
+        return struct.unpack('>H', self.io.read(2))[0]
+
+    def read_int(self):
+        return struct.unpack('>i', self.io.read(4))[0]
+
+    def read_long(self):
+        return struct.unpack('>q', self.io.read(8))[0]
+
+    def read_float(self):
+        return struct.unpack('>f', self.io.read(4))[0]
+
+    def read_double(self):
+        return struct.unpack('>d', self.io.read(8))[0]
+
+    def read_unsigned_byte(self):
+        return self.io.read(1)[0]
+    
+    def read_byte(self): 
+        return struct.unpack('>b', self.io.read(1))[0]
+
 def write_varint(val):
     out = b''
     while True:
@@ -56,8 +81,23 @@ def write_string(val):
     data = val.encode('utf-8')
     return write_varint(len(data)) + data
 
+def write_short(val):
+    return struct.pack('>h', val)
+
 def write_unsigned_short(val):
     return struct.pack('>H', val)
+
+def write_int(val):
+    return struct.pack('>i', val)
+
+def write_long(val):
+    return struct.pack('>q', val)
+
+def write_float(val):
+    return struct.pack('>f', val)
+
+def write_double(val):
+    return struct.pack('>d', val)
 
 def write_packet(packet_id, data, compression_context=None):
     """

@@ -2,10 +2,13 @@ import socket
 import threading
 import sys
 import struct
+import time
+import random 
+import zlib
+
 import packet_utils
 import encryption_utils
 import auth_utils
-import zlib
 from packet_inspector import PacketInspector
 
 # Configuration
@@ -18,8 +21,9 @@ TARGET_PORT = 25566
 MC_ACCESS_TOKEN = None
 MC_PROFILE_NAME = None
 MC_PROFILE_ID = None
+ENABLE_INSPECTOR = False
 
-# Packet IDs
+# Packet IDs (Protocol 110 / 1.9.4)
 PACKET_HANDSHAKE = 0x00
 PACKET_LOGIN_START = 0x00
 PACKET_ENCRYPTION_REQUEST = 0x01
@@ -37,6 +41,13 @@ class ProxyConnection:
         self.client_state = 0 # 0=Handshake, 1=Status, 2=Login, 3=Play
         self.compression_threshold = None
         
+        # Cheats
+        self.player_eid = None
+        self.delayed_packets = [] # List of (send_time, packet_data)
+        self.last_packet_time = 0 
+        
+        self.send_lock = threading.Lock() # Protects server_sock writes
+
         self.inspector = PacketInspector()
         if ENABLE_INSPECTOR:
             self.inspector.enable()
@@ -47,8 +58,30 @@ class ProxyConnection:
         # Threads
         self.t1 = threading.Thread(target=self.client_to_server)
         self.t2 = threading.Thread(target=self.server_to_client)
+        self.t3 = threading.Thread(target=self.process_delay_queue)
         self.t1.start()
         self.t2.start()
+        self.t3.start()
+
+    def process_delay_queue(self):
+        """ Checks for delayed packets (Cheat) """
+        while self.running:
+            now = time.time()
+            remaining = []
+            for send_time, data in self.delayed_packets:
+                if now >= send_time:
+                    try:
+                        with self.send_lock:
+                            if self.server_cipher:
+                                encrypted = self.server_cipher.encrypt(data)
+                                self.server_sock.sendall(encrypted)
+                            else:
+                                self.server_sock.sendall(data)
+                    except: pass
+                else:
+                    remaining.append((send_time, data))
+            self.delayed_packets = remaining
+            time.sleep(0.01)
 
     def close(self):
         self.running = False
@@ -72,8 +105,16 @@ class ProxyConnection:
                     port = buf.read_unsigned_short()
                     next_state = buf.read_varint()
                     self.client_state = next_state
-                    print(f"[C->S] Handshake: Ver={proto_ver}, Addr={addr}, State={next_state}")
-
+                    print(f"[C->S] Handshake: Ver={proto_ver}, Addr={addr} -> {TARGET_HOST}, State={next_state}")
+                    
+                    # REWRITE HANDSHAKE with TARGET_HOST
+                    new_handshake = b''
+                    new_handshake += packet_utils.write_varint(proto_ver)
+                    new_handshake += packet_utils.write_string(TARGET_HOST)
+                    new_handshake += packet_utils.write_unsigned_short(TARGET_PORT)
+                    new_handshake += packet_utils.write_varint(next_state)
+                    data = new_handshake
+                
                 elif self.client_state == 2:
                     if pid == PACKET_LOGIN_START:
                         buf = packet_utils.PacketBuffer(data)
@@ -83,31 +124,57 @@ class ProxyConnection:
                         if MC_PROFILE_NAME:
                             print(f"[Proxy] Overriding Username with Authenticated: {MC_PROFILE_NAME}")
                             data = packet_utils.write_string(MC_PROFILE_NAME)
-                # VERBOSE LOG C->S
-                if self.client_state == 3:
-                     # print(f"[C->S] Packet ID=0x{pid:02x} Len={len(data)} Payload={data.hex()}")
-                     pass
-                
-                # INSPECTOR
-                self.inspector.inspect("C->S", self.client_state, pid, data)
 
-                raw_packet = packet_utils.write_packet(pid, data, self)
-                
-                if self.server_cipher:
-                    encrypted = self.server_cipher.encrypt(raw_packet)
-                    self.server_sock.sendall(encrypted)
-                else:
-                    self.server_sock.sendall(raw_packet)
+                # --- CHEAT: DELAY TRANSACTIONS (e.g. 0x0F) ---
+                # Check Cheat Config
+                try:
+                    import inspector_server
+                    fake_lag = inspector_server.CHEAT_CONFIG.get("fake_lag", False)
+                except: fake_lag = False
 
+                if self.client_state == 3 and pid == 0x0F and fake_lag:
+                    # Delay logic...
+                    delay = random.uniform(0.2, 0.4) 
+                    send_time = time.time() + delay
+                    
+                    full_packet = packet_utils.write_packet(pid, data, self)
+                    
+                    # Ensure monotonic time
+                    if send_time < self.last_packet_time:
+                        send_time = self.last_packet_time + 0.05
+                    self.last_packet_time = send_time
+                    
+                    self.delayed_packets.append((send_time, full_packet))
+                    print(f"[Cheat] Delayed Transaction 0x0F by {delay:.2f}s")
+                    continue # Skip immediate send
+
+                # Forward immediately
+                try:
+                    full_packet = packet_utils.write_packet(pid, data, self)
+                    with self.send_lock:
+                        if self.server_cipher:
+                            encrypted = self.server_cipher.encrypt(full_packet)
+                            self.server_sock.sendall(encrypted)
+                        else:
+                            self.server_sock.sendall(full_packet)
+                except Exception as e:
+                    print(f"[Proxy] Send Error: {e}")
+                    break
+        
         except Exception as e:
-            if isinstance(e, OSError) and e.errno == 9:
-                pass
-            else:
-                print(f"[C->S Error] {e}")
-                # import traceback
-                # traceback.print_exc()
+            pass
         finally:
             self.close()
+
+
+
+
+
+                
+                # INSPECTOR
+
+
+
 
     def server_to_client(self):
         try:
@@ -152,27 +219,37 @@ class ProxyConnection:
                         print(f"[Proxy] Server disconnected during body (Expected {length}, got {len(body)}).")
                         break
 
-                    
                     # Decompression Logic
                     if self.compression_threshold is not None and self.compression_threshold >= 0:
-                        import zlib
+                        # print(f"DEBUG: Body Hex: {body.hex()}")
                         buf = packet_utils.PacketBuffer(body)
                         data_len = buf.read_varint()
+                        
                         if data_len == 0:
-                            # Uncompressed body
-                            pass 
+                            # Uncompressed body: Remaining is [ID] [Payload]
+                            pass
                         else:
                             compressed = buf.get_remaining()
-                            uncompressed = zlib.decompress(compressed)
+                            try:
+                                uncompressed = zlib.decompress(compressed)
+                            except Exception as e:
+                                print(f"[Proxy] Decompression Error: {e} | Body: {body.hex()}")
+                                raise e
                             buf = packet_utils.PacketBuffer(uncompressed)
                         
-                        pid = buf.read_varint()
+                        try:
+                            pid = buf.read_varint()
+                        except Exception as e:
+                             print(f"[Proxy] ID Read Error: {e} | Body: {body.hex()} | DataLen: {data_len}")
+                             raise e
+                             
                         payload = buf.get_remaining()
                     else:
                         buf = packet_utils.PacketBuffer(body)
                         pid = buf.read_varint()
                         payload = buf.get_remaining()
                     
+                    # State Checks
                     if self.client_state == 2:
                         if pid == PACKET_LOGIN_SUCCESS:
                              print(f"[S->C] Login Success (Encrypted)! Switching to PLAY state.")
@@ -185,17 +262,79 @@ class ProxyConnection:
                              self.compression_threshold = threshold
                              continue
 
-                    # VERBOSE LOG
-                    # print(f"[S->C] Packet ID=0x{pid:02x} Len={len(payload)}")
+                    # --- CHEAT LOGIC START ---
                     
-                    self.client_sock.sendall(packet_utils.write_packet(pid, payload, self))
-                    
+                    if self.client_state == 3:
+                        if pid == 0x23: # Join Game
+                            try: 
+                                buf = packet_utils.PacketBuffer(payload)
+                                eid = buf.read_int()
+                                self.player_eid = eid
+                                print(f"[Cheat] Captured Player EID: {eid}")
+                            except: pass
+
+                        elif pid == 0x3B: # Entity Velocity
+                            # Check EID
+                            try:
+                                import inspector_server
+                                anti_kb = inspector_server.CHEAT_CONFIG.get("anti_kb", True)
+                                kb_h = inspector_server.CHEAT_CONFIG.get("kb_h", 0)   # Horizontal
+                                kb_v = inspector_server.CHEAT_CONFIG.get("kb_v", 100) # Vertical
+                                smart_mode = inspector_server.CHEAT_CONFIG.get("smart_mode", True)
+                                
+                                buf = packet_utils.PacketBuffer(payload)
+                                eid = buf.read_varint()
+                                
+                                if eid == self.player_eid and anti_kb:
+                                    # Read Original
+                                    vel_x = buf.read_short()
+                                    vel_y = buf.read_short()
+                                    vel_z = buf.read_short()
+                                    
+                                    # Calculate Target Vel
+                                    t_x = int(vel_x * (kb_h / 100.0))
+                                    t_y = int(vel_y * (kb_v / 100.0))
+                                    t_z = int(vel_z * (kb_h / 100.0))
+                                    
+                                    # Logic for "Safe" Anti-Cheat Bypass
+                                    if smart_mode:
+                                        # 1. Jitter Horizontal if Near Zero
+                                        # If request is 0% but original was large, result is 0.
+                                        # AC checks for Friction/Momentum. Absolute 0 is weird if hit hard.
+                                        # Use +/- random jitter to simulate friction.
+                                        if t_x == 0 and vel_x != 0: t_x = random.randint(-5, 5)
+                                        if t_z == 0 and vel_z != 0: t_z = random.randint(-5, 5)
+                                        
+                                        # 2. Safety Clamp for Vertical
+                                        # If user sets Vertical to < 50%, it looks suspicious (no jump).
+                                        # Warn or Clamp? For now, we trust the slider, but maybe add minimum jitter?
+                                        # If t_y is 0 (no vertical KB), ensure it's not a "grounded bit" spoof fail.
+                                        if t_y == 0 and vel_y > 400: # 400 ~ small jump
+                                             # t_y = random.randint(100, 200) # Mini hop
+                                             pass
+                                    
+                                    # Reconstruct
+                                    new_payload = b''
+                                    new_payload += packet_utils.write_varint(eid)
+                                    new_payload += packet_utils.write_short(t_x)
+                                    new_payload += packet_utils.write_short(t_y)
+                                    new_payload += packet_utils.write_short(t_z)
+                                    
+                                    payload = new_payload
+                                    print(f"[Cheat] KB Modified: H={kb_h}% V={kb_v}% (Smart: {smart_mode}) | {vel_x},{vel_y},{vel_z} -> {t_x},{t_y},{t_z}")
+
+                            except Exception as e:
+                                print(f"[Cheat Error] KB Logic Failed: {e}")
+
+                    # --- CHEAT LOGIC END ---
+
                     # INSPECTOR
                     self.inspector.inspect("S->C", self.client_state, pid, payload)
+                    
+                    self.client_sock.sendall(packet_utils.write_packet(pid, payload, self))
 
         except Exception as e:
             if isinstance(e, OSError) and e.errno == 9:
-                # Socket closed (Bad file descriptor) - expected on shutdown
                 pass
             else:
                 print(f"[S->C Error] {e}")
@@ -223,7 +362,6 @@ class ProxyConnection:
             server_hash = encryption_utils.make_digest(server_id, shared_secret, pubkey)
             hash_str = encryption_utils.java_hex_digest(server_hash)
             
-            # Use specific UUID format handling? (Usually straightforward)
             success = auth_utils.join_server(MC_ACCESS_TOKEN, MC_PROFILE_ID, hash_str, shared_secret, pubkey)
             if not success:
                print("[!] Auth Failed! Server might reject connection.")
@@ -240,7 +378,8 @@ class ProxyConnection:
         resp_data += packet_utils.write_varint(len(enc_token))
         resp_data += enc_token
         
-        self.server_sock.sendall(packet_utils.write_packet(PACKET_ENCRYPTION_RESPONSE, resp_data))
+        with self.send_lock:
+            self.server_sock.sendall(packet_utils.write_packet(PACKET_ENCRYPTION_RESPONSE, resp_data))
         print("[P->S] Sent Encryption Response")
         
         # 4. Enable Encryption locally
@@ -251,26 +390,37 @@ class ProxyConnection:
         value = 0
         shift = 0
         while True:
+            # print("DEBUG: Reading encrypted byte...")
             byte = self.server_sock.recv(1)
-            if not byte: return None
-            byte = self.server_cipher.decrypt(byte)
+            if not byte: 
+                print("DEBUG: Connection closed while reading varint.")
+                return None
+            try:
+                byte = self.server_cipher.decrypt(byte)
+            except Exception as e:
+                print(f"DEBUG: Decryption error: {e}")
+                return None
+                
             val = byte[0]
             value |= (val & 0x7F) << shift
             if (val & 0x80) == 0:
                 break
             shift += 7
+        # print(f"DEBUG: Read VarInt Encrypted: {value}")
         return value
 
     def read_bytes_encrypted(self, n):
         data = b''
         while len(data) < n:
             chunk = self.server_sock.recv(n - len(data))
-            if not chunk: break
+            if not chunk: 
+                print("DEBUG: Connection closed while reading bytes.")
+                break
             data += self.server_cipher.decrypt(chunk)
         return data
 
 def start_proxy():
-    global MC_ACCESS_TOKEN, MC_PROFILE_NAME, MC_PROFILE_ID
+    global MC_ACCESS_TOKEN, MC_PROFILE_NAME, MC_PROFILE_ID, ENABLE_INSPECTOR
     
     # Check for Auth request
     print("[*] Starting Minecraft Proxy...")
@@ -296,7 +446,6 @@ def start_proxy():
     # Inspector Prompt
     insp = input("Enable Packet Inspector (Wireshark-like view)? (y/n) [n]: ").strip().lower()
     if insp == 'y':
-        global ENABLE_INSPECTOR
         ENABLE_INSPECTOR = True
         
         # Start Web Server
@@ -325,10 +474,5 @@ if __name__ == '__main__':
         TARGET_PORT = int(sys.argv[2])
     if len(sys.argv) > 3:
         LOCAL_PORT = int(sys.argv[3])
-        
-    # Safety check
-    if (TARGET_HOST in ['127.0.0.1', 'localhost', '0.0.0.0'] and TARGET_PORT == LOCAL_PORT):
-        print(f"[!] ERROR: Target {TARGET_HOST}:{TARGET_PORT} is the same as Listen Port {LOCAL_PORT}!")
-        sys.exit(1)
-
+    
     start_proxy()

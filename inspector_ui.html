@@ -1,5 +1,6 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
     <meta charset="UTF-8">
     <title>Minecraft Packet Inspector</title>
@@ -12,6 +13,7 @@
             --highlight: #007acc;
             --accent: #4ec9b0;
         }
+
         body {
             background-color: var(--bg-color);
             color: var(--text-color);
@@ -21,6 +23,7 @@
             flex-direction: column;
             height: 100vh;
         }
+
         header {
             background-color: #333333;
             padding: 10px 20px;
@@ -29,8 +32,18 @@
             align-items: center;
             border-bottom: 1px solid var(--border-color);
         }
-        h1 { margin: 0; font-size: 1.2rem; color: #fff; }
-        .controls { display: flex; gap: 10px; }
+
+        h1 {
+            margin: 0;
+            font-size: 1.2rem;
+            color: #fff;
+        }
+
+        .controls {
+            display: flex;
+            gap: 10px;
+        }
+
         input[type="text"] {
             background: #3c3c3c;
             border: 1px solid var(--border-color);
@@ -38,6 +51,7 @@
             padding: 5px 10px;
             border-radius: 4px;
         }
+
         button {
             background-color: var(--highlight);
             color: white;
@@ -46,44 +60,66 @@
             cursor: pointer;
             border-radius: 4px;
         }
-        button:hover { opacity: 0.9; }
-        
+
+        button:hover {
+            opacity: 0.9;
+        }
+
         .main-container {
             display: flex;
             flex: 1;
             overflow: hidden;
         }
-        
+
         .packet-list {
             flex: 2;
             overflow-y: auto;
             border-right: 1px solid var(--border-color);
         }
-        
+
         table {
             width: 100%;
             border-collapse: collapse;
             font-size: 0.9rem;
         }
-        th, td {
+
+        th,
+        td {
             text-align: left;
             padding: 6px 10px;
             border-bottom: 1px solid #2d2d2d;
             white-space: nowrap;
         }
+
         th {
             background-color: #2d2d2d;
             position: sticky;
             top: 0;
             color: #aaa;
         }
-        tr:hover { background-color: #2a2d2e; cursor: pointer; }
-        tr.selected { background-color: #094771 !important; color: white; }
-        
+
+        tr:hover {
+            background-color: #2a2d2e;
+            cursor: pointer;
+        }
+
+        tr.selected {
+            background-color: #094771 !important;
+            color: white;
+        }
+
         /* Colors for directions */
-        .dir-cs { color: #569cd6; } /* Blueish */
-        .dir-sc { color: #ce9178; } /* Orangeish */
-        
+        .dir-cs {
+            color: #569cd6;
+        }
+
+        /* Blueish */
+        .dir-sc {
+            color: #ce9178;
+        }
+
+        /* Orangeish */
+
         .details-panel {
             flex: 1;
             background-color: var(--panel-bg);
@@ -91,6 +127,7 @@
             overflow-y: auto;
             font-family: 'Consolas', 'Courier New', monospace;
         }
+
         .hex-view {
             white-space: pre-wrap;
             word-break: break-all;
@@ -98,170 +135,257 @@
         }
     </style>
 </head>
+
 <body>
 
-<header>
-    <h1>MC Proxy Inspector</h1>
-    <div class="controls">
-        <input type="text" id="filterInput" placeholder="Filter (e.g. Chat, 0x23)...">
-        <button onclick="togglePause()" id="pauseBtn">Pause</button>
-        <button onclick="clearPackets()">Clear</button>
-    </div>
-</header>
+    <header>
+        <h1>MC Proxy Inspector</h1>
+        <div class="controls" style="display: flex; align-items: center; gap: 10px; flex-wrap: wrap;">
+            <label style="color: #aaa; font-weight: bold;">Cheats:</label>
 
-<div class="main-container">
-    <div class="packet-list">
-        <table id="packetTable">
-            <thead>
-                <tr>
-                    <th width="80">Time</th>
-                    <th width="50">Dir</th>
-                    <th width="80">State</th>
-                    <th width="50">ID</th>
-                    <th>Name</th>
-                    <th width="60">Len</th>
-                </tr>
-            </thead>
-            <tbody>
-                <!-- Rows injected here -->
-            </tbody>
-        </table>
-    </div>
-    <div class="details-panel" id="detailsPanel">
-        <h3>Select a packet to view details</h3>
-    </div>
-</div>
+            <button onclick="toggleCheat('fake_lag')" id="btn-fake_lag"
+                style="background:#444; padding: 5px 10px; border:none; color:white; cursor:pointer;">Fake Lag:
+                OFF</button>
+            <button onclick="toggleCheat('anti_kb')" id="btn-anti_kb"
+                style="background:#444; padding: 5px 10px; border:none; color:white; cursor:pointer;">Anti-KB:
+                OFF</button>
+            <button onclick="toggleCheat('smart_mode')" id="btn-smart_mode"
+                style="background:#444; padding: 5px 10px; border:none; color:white; cursor:pointer;">Smart:
+                OFF</button>
 
-<script>
-    let packets = [];
-    let isPaused = false;
-    let lastIndex = 0;
-    let selectedPacket = null;
+            <div style="display: flex; flex-direction: column; gap: 2px;">
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <label style="color: #ccc; font-size: 0.8em; width: 30px;">Horiz:</label>
+                    <input type="range" id="kb_h" min="0" max="100" value="0" style="width: 80px;"
+                        oninput="updateLabel('kb_h', this.value)" onchange="setVal('kb_h', this.value)">
+                    <span id="label_kb_h"
+                        style="color: #fff; width: 30px; text-align: right; font-size: 0.8em;">0%</span>
+                </div>
+                <div style="display: flex; align-items: center; gap: 5px;">
+                    <label style="color: #ccc; font-size: 0.8em; width: 30px;">Vert:</label>
+                    <input type="range" id="kb_v" min="0" max="100" value="100" style="width: 80px;"
+                        oninput="updateLabel('kb_v', this.value)" onchange="setVal('kb_v', this.value)">
+                    <span id="label_kb_v"
+                        style="color: #fff; width: 30px; text-align: right; font-size: 0.8em;">100%</span>
+                </div>
+            </div>
 
-    async function fetchPackets() {
-        if (isPaused) return;
-        try {
-            const resp = await fetch(`/api/packets?since=${lastIndex}`);
-            const newPackets = await resp.json();
-            
-            if (newPackets.length > 0) {
-                newPackets.forEach(p => {
-                    packets.push(p);
-                    addPacketRow(p);
-                });
-                lastIndex += newPackets.length;
-                
-                // Auto scroll if not selecting something?
-                if (!selectedPacket) {
-                     const list = document.querySelector('.packet-list');
-                     list.scrollTop = list.scrollHeight;
+            <span style="border-left: 1px solid #555; height: 30px; margin: 0 5px;"></span>
+            <input type="text" id="filterInput" placeholder="Filter (e.g. Chat, 0x23)..." style="padding: 5px;">
+            <button onclick="togglePause()" id="pauseBtn" style="padding: 5px;">Pause</button>
+            <button onclick="clearPackets()" style="padding: 5px;">Clear</button>
+        </div>
+    </header>
+
+    <div class="main-container">
+        <div class="packet-list">
+            <table id="packetTable">
+                <thead>
+                    <tr>
+                        <th width="80">Time</th>
+                        <th width="50">Dir</th>
+                        <th width="80">State</th>
+                        <th width="50">ID</th>
+                        <th>Name</th>
+                        <th width="60">Len</th>
+                    </tr>
+                </thead>
+                <tbody>
+                    <!-- Rows injected here -->
+                </tbody>
+            </table>
+        </div>
+        <div class="details-panel" id="detailsPanel">
+            <h3>Select a packet to view details</h3>
+        </div>
+    </div>
+
+    <script>
+        let packets = [];
+        let isPaused = false;
+        let lastIndex = 0;
+        let selectedPacket = null;
+
+        async function fetchPackets() {
+            if (isPaused) return;
+            try {
+                const resp = await fetch(`/api/packets?since=${lastIndex}`);
+                const newPackets = await resp.json();
+
+                if (newPackets.length > 0) {
+                    newPackets.forEach(p => {
+                        packets.push(p);
+                        addPacketRow(p);
+                    });
+                    lastIndex += newPackets.length;
+
+                    // Auto scroll if not selecting something?
+                    if (!selectedPacket) {
+                        const list = document.querySelector('.packet-list');
+                        list.scrollTop = list.scrollHeight;
+                    }
                 }
+            } catch (e) {
+                console.error("Fetch error", e);
             }
-        } catch (e) {
-            console.error("Fetch error", e);
         }
-    }
 
-    function addPacketRow(pkt) {
-        const filter = document.getElementById('filterInput').value.toLowerCase();
-        if (filter && !matchesFilter(pkt, filter)) return;
+        function addPacketRow(pkt) {
+            const filter = document.getElementById('filterInput').value.toLowerCase();
+            if (filter && !matchesFilter(pkt, filter)) return;
 
-        const tbody = document.querySelector('#packetTable tbody');
-        const tr = document.createElement('tr');
-        tr.className = `packet-row`;
-        tr.onclick = () => selectPacket(pkt, tr);
-        
-        const dirClass = pkt.direction === "C->S" ? "dir-cs" : "dir-sc";
-        
-        tr.innerHTML = `
+            const tbody = document.querySelector('#packetTable tbody');
+            const tr = document.createElement('tr');
+            tr.className = `packet-row`;
+            tr.onclick = () => selectPacket(pkt, tr);
+
+            const dirClass = pkt.direction === "C->S" ? "dir-cs" : "dir-sc";
+
+            // Show Name + Description if available
+            let nameCol = pkt.name;
+            if (pkt.description) {
+                nameCol += ` <span style='color: #888; font-size: 0.85em;'>(${pkt.description})</span>`;
+            }
+
+            tr.innerHTML = `
             <td>${pkt.time}</td>
             <td class="${dirClass}"><strong>${pkt.direction}</strong></td>
             <td>${pkt.state}</td>
-            <td>0x${pkt.id.toString(16).padStart(2,'0').toUpperCase()}</td>
-            <td>${pkt.name}</td>
+            <td>0x${pkt.id.toString(16).padStart(2, '0').toUpperCase()}</td>
+            <td>${nameCol}</td>
             <td>${pkt.length}</td>
         `;
-        tbody.appendChild(tr);
-    }
+            tbody.appendChild(tr);
+        }
 
-    function matchesFilter(pkt, filter) {
-        if (pkt.name.toLowerCase().includes(filter)) return true;
-        if (pkt.id.toString(16).includes(filter)) return true;
-        if (pkt.state.toLowerCase().includes(filter)) return true;
-        return false;
-    }
+        function matchesFilter(pkt, filter) {
+            if (pkt.name.toLowerCase().includes(filter)) return true;
+            if (pkt.id.toString(16).includes(filter)) return true;
+            if (pkt.state.toLowerCase().includes(filter)) return true;
+            if (pkt.description && pkt.description.toLowerCase().includes(filter)) return true;
+            return false;
+        }
 
-    function selectPacket(pkt, tr) {
-        // Highlight row
-        document.querySelectorAll('tr.selected').forEach(r => r.classList.remove('selected'));
-        tr.classList.add('selected');
-        selectedPacket = pkt;
-        
-        // Show details
-        const panel = document.getElementById('detailsPanel');
-        panel.innerHTML = `
+        function selectPacket(pkt, tr) {
+            // Highlight row
+            document.querySelectorAll('tr.selected').forEach(r => r.classList.remove('selected'));
+            tr.classList.add('selected');
+            selectedPacket = pkt;
+
+            // Show details
+            const panel = document.getElementById('detailsPanel');
+
+            let parsedHtml = "";
+            if (pkt.parsed) {
+                parsedHtml += "<h4>Parsed Fields</h4><table style='width:auto;'>";
+                for (const [key, value] of Object.entries(pkt.parsed)) {
+                    parsedHtml += `<tr><td style='color:#9cdcfe;'>${key}</td><td style='color:#ce9178;'>${value}</td></tr>`;
+                }
+                parsedHtml += "</table><hr/>";
+            }
+
+            panel.innerHTML = `
             <h3>Packet Details</h3>
             <p><strong>Name:</strong> ${pkt.name}</p>
             <p><strong>ID:</strong> 0x${pkt.id.toString(16).toUpperCase()}</p>
             <p><strong>Size:</strong> ${pkt.length} bytes</p>
+            <p><strong>Description:</strong> ${pkt.description || "-"}</p>
             <hr/>
+            ${parsedHtml}
             <h4>Hex Dump</h4>
             <div class="hex-view">${formatHex(pkt.payload)}</div>
         `;
-    }
-
-    function formatHex(hexStr) {
-        // Format nicely
-        let output = "";
-        for (let i = 0; i < hexStr.length; i += 32) { // 16 bytes = 32 hex chars
-            const chunk = hexStr.substr(i, 32);
-            output += chunk.match(/.{1,2}/g).join(" ") + "\n";
         }
-        return output;
-    }
 
-    function togglePause() {
-        isPaused = !isPaused;
-        document.getElementById('pauseBtn').innerText = isPaused ? "Resume" : "Pause";
-        document.getElementById('pauseBtn').style.backgroundColor = isPaused ? "#e0902d" : "#007acc";
-    }
-
-    function clearPackets() {
-        packets = []; // Keep in memory? Or clear backend?
-        // Ideally backend is cleared too, but for now just UI
-        document.querySelector('#packetTable tbody').innerHTML = "";
-        lastIndex = 0; // Reset index? Wait, if backend isn't cleared, we fetch duplicated.
-        // Simple hack: We reload the page to restart session or implement clear endpoint.
-        // Let's just clear UI.
-    }
-
-    // Filter Logic
-    document.getElementById('filterInput').addEventListener('input', (e) => {
-        const Val = e.target.value.toLowerCase();
-        const tbody = document.querySelector('#packetTable tbody');
-        tbody.innerHTML = "";
-        packets.forEach(p => {
-            if (matchesFilter(p, Val)) {
-                // Re-render
-                // Code duplication - optimize later
-                const tr = document.createElement('tr');
-                tr.onclick = () => selectPacket(p, tr);
-                const dirClass = p.direction === "C->S" ? "dir-cs" : "dir-sc";
-                tr.innerHTML = `
-                    <td>${p.time}</td>
-                    <td class="${dirClass}"><strong>${p.direction}</strong></td>
-                    <td>${p.state}</td>
-                    <td>0x${p.id.toString(16).padStart(2,'0').toUpperCase()}</td>
-                    <td>${p.name}</td>
-                    <td>${p.length}</td>
-                `;
-                tbody.appendChild(tr);
+        function formatHex(hexStr) {
+            // Format nicely
+            let output = "";
+            for (let i = 0; i < hexStr.length; i += 32) { // 16 bytes = 32 hex chars
+                const chunk = hexStr.substr(i, 32);
+                output += chunk.match(/.{1,2}/g).join(" ") + "\n";
             }
-        });
-    });
+            return output;
+        }
 
-    setInterval(fetchPackets, 1000); // Poll every second
-</script>
+        function togglePause() {
+            isPaused = !isPaused;
+            document.getElementById('pauseBtn').innerText = isPaused ? "Resume" : "Pause";
+            document.getElementById('pauseBtn').style.backgroundColor = isPaused ? "#e0902d" : "#007acc";
+        }
+
+        function clearPackets() {
+            packets = []; // Keep in memory? Or clear backend?
+            // Ideally backend is cleared too, but for now just UI
+            document.querySelector('#packetTable tbody').innerHTML = "";
+            lastIndex = 0; // Reset index? Wait, if backend isn't cleared, we fetch duplicated.
+            // Simple hack: We reload the page to restart session or implement clear endpoint.
+            // Let's just clear UI.
+        }
+
+        // Filter Logic
+        setInterval(fetchPackets, 1000);
+        setInterval(fetchStatus, 2000);
+
+        async function fetchStatus() {
+            try {
+                const resp = await fetch('/api/status');
+                const status = await resp.json();
+
+                updateToggle('fake_lag', status.fake_lag);
+                updateToggle('anti_kb', status.anti_kb);
+                updateToggle('smart_mode', status.smart_mode);
+
+                // Update sliders if not active
+                updateSliderIfIdle('kb_h', status.kb_h);
+                updateSliderIfIdle('kb_v', status.kb_v);
+
+            } catch (e) { }
+        }
+
+        function updateToggle(id, state) {
+            const btn = document.getElementById('btn-' + id);
+            if (!btn) return;
+
+            let label = id.replace('_', ' ').replace(/\b\w/g, c => c.toUpperCase());
+            if (id === 'anti_kb') label = "Anti-KB";
+            if (id === 'smart_mode') label = "Smart";
+
+            if (state) {
+                btn.style.backgroundColor = "#2da042";
+                btn.innerText = label + ": ON";
+            } else {
+                btn.style.backgroundColor = "#444";
+                btn.innerText = label + ": OFF";
+            }
+        }
+
+        function updateSliderIfIdle(key, val) {
+            const slider = document.getElementById(key);
+            if (!slider) return;
+
+            // Only update if user is NOT currently dragging it
+            if (document.activeElement !== slider) {
+                slider.value = val;
+                updateLabel(key, val);
+            }
+        }
+
+        async function toggleCheat(cheat) {
+            const btn = document.getElementById('btn-' + cheat);
+            const isMsgOn = btn.innerText.includes("ON");
+            await fetch(`/api/toggle?cheat=${cheat}&state=${!isMsgOn}`);
+            fetchStatus();
+        }
+
+        function updateLabel(key, val) {
+            document.getElementById('label_' + key).innerText = val + "%";
+        }
+
+        async function setVal(key, val) {
+            await fetch(`/api/toggle?cheat=${key}&value=${val}`);
+        }
+    </script>
 
 </body>
+
 </html>
